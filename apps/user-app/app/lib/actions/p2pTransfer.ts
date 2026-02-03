@@ -24,6 +24,7 @@ export async function p2pTransfer(to: string, amount: number) {
     }
 
     await prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`SELECT * FROM "Balance" WHERE "userId" = ${Number(fromUser)} FOR UPDATE`
         const fromBalance = await tx.balance.findUnique({
             where: {userId: Number(fromUser)}
         })
@@ -31,7 +32,10 @@ export async function p2pTransfer(to: string, amount: number) {
         if (!fromBalance || fromBalance.amount < amount){
             throw new Error("Insufficient Error")
         }
-
+        /* prblem with this approach -> try to adding a sleep timeout in the transaction.
+          while sending two request simultaneously can makes the sender balance in negative. 
+          To prevent this we have to lock the row
+        */
         await tx.balance.update({
             where: {userId: Number(fromUser)},
             data: {amount: {decrement: amount}}
